@@ -39,8 +39,11 @@ char typecheck(int flag){
 		char type;
 		if(flag & EXT2_S_IFREG){
 			type = 'f';
-		}else{
+		}
+		else if (flag & EXT2_S_IFDIR){
 			type = 'd';
+		} else {
+			type = 'q';
 		}
 		return type;
 	}
@@ -55,23 +58,19 @@ void printdatablocks(unsigned int *i_block){
 }
 
 // this prints out all valid inodes
-void print_valid_inodes(void *table_base){
-	struct ext2_super_block *sb = (struct ext2_super_block *)(disk + 1024);
-	int i;
-	int total = sb->s_blocks_count;
-	for (i = 12; i<total; i++){
-		struct ext2_inode *inode = (struct ext2_inode*)(table_base)+(i-1);
-		if(table_base){ // something valid at that inode block			
-			int type = typecheck(inode->i_flags);  
-			int size = inode->i_size;
-			int links = inode->i_links_count;
-			int iblocks = inode->i_blocks;
-			printf("[%d] type: %c size: %d links: %d blocks: %d\n", i, type, size, links, iblocks);
-			printf("[%d] blocks: ", i);
-			printdatablocks(inode->i_block);
-			printf("\n");
-		}
-	}
+void print_valid_inodes(void *tablelocation, int i){
+	struct ext2_inode *inode = (struct ext2_inode*)(tablelocation)+(i-1);
+	// something valid at that inode block			
+	int type = typecheck(inode->i_mode);  
+	int size = inode->i_size;
+	int links = inode->i_links_count;
+	int iblocks = inode->i_blocks;
+	printf("[%d] type: %c size: %d links: %d blocks: %d\n", i, type, size, links, iblocks);
+	printf("[%d] blocks: ", i);
+	printdatablocks(inode->i_block);
+	printf("\n");
+		
+	
 }
 
 
@@ -133,7 +132,7 @@ int main(int argc, char **argv) {
     // we are hard coding the root inode since it's always 2
     // we plus one to indicate the start of root inode and end of the first inode
     struct ext2_inode *rootinode = (struct ext2_inode*)(tablestart)+1;
-    int type = typecheck(rootinode->i_flags);  
+    int type = typecheck(rootinode->i_mode);  
     int size = rootinode->i_size;
     int links = rootinode->i_links_count;
     int iblocks = rootinode->i_blocks;
@@ -141,16 +140,23 @@ int main(int argc, char **argv) {
     printf("[2] blocks:");
     printdatablocks(rootinode->i_block);
     printf("\n");
-    //print_valid_inodes(tablestart);
+    
     // below are for inode block after 11
     
+    // need another pointer that starts at the beginning of the inode_bitmap
+    void *inode_bit_start = disk + start_inode;
+    int inode_bits = *((int*)inode_bit_start);
+    inode_bits = inode_bits >> 11; 
     
+    int k;
     
-    
-    
-    
-    
-    
+    //we start at 11 because index 0 counts
+    for (k = 11; k < 32; k++){
+		if(inode_bits & 1){
+			print_valid_inodes(tablestart, k+1);
+		}
+		inode_bits = inode_bits >> 1; 
+	}
     
     return 0;
     
