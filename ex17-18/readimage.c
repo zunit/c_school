@@ -47,6 +47,35 @@ char typecheck(int flag){
 		}
 		return type;
 	}
+
+char filetypecheck(char flag){
+	if (flag == 0){
+		return 'u'; //unknown
+	}
+	else if(flag == 1){
+		return 'f'; //regular file
+	}
+	else if(flag == 2){
+		return 'd'; //dir
+	}
+	else if(flag == 3){
+		return 'a'; //EXT2_FT_CHRDEV		= 3,
+	}
+	else if(flag == 4){ //EXT2_FT_BLKDEV		= 4,
+		return 'b';
+	}
+	else if(flag == 5){ //EXT2_FT_FIFO		= 5,
+		return 'c';
+	}
+	else if(flag == 6){ //EXT2_FT_SOCK		= 6,
+		return 'd';
+	}
+	else if(flag == 7){ //EXT2_FT_SYMLINK		= 7,
+		return 'e';
+	} else {
+		return 'o';
+	}
+}
 	
 // helper function for printing out data blocks
 void printdatablocks(unsigned int *i_block){
@@ -79,11 +108,28 @@ void print_inode_array(int *inode_array, int size){
 	}
 }
 
-void print_directory_entry(struct ext2_dir_entry_2 *dir_entry){
-	printf("DIR BLOCK NUM: %d (for inode %d)\n", 9, dir_entry->inode);
-	printf("Inode: %d rec_len: %hu name_len: %d type=%c name=%s\n", dir_entry->inode, dir_entry->rec_len, dir_entry->name_len, dir_entry->file_type, dir_entry->name);
-	//printf("%s\n", );
+// helper for printing directory entry
+// input the blocknum and the for_inode_num
+void print_directory_entry(int blocknum, int inodenum){
+	int end = 1024;
+	int current = 0;
+
+	// root can always be hard coded 
+	printf("\tDIR BLOCK NUM: %d (for inode %d)\n", blocknum, inodenum);
+	while (current < end){
+		struct ext2_dir_entry_2 *root_dir_entry = (struct ext2_dir_entry_2*)(disk + (1024 * blocknum) + current);
+		int inode_num = root_dir_entry->inode;
+		unsigned short dir_len = root_dir_entry->rec_len;
+		int name_length = root_dir_entry->name_len;
+		char file_flag = filetypecheck(root_dir_entry->file_type);
+
+		printf("Inode: %d rec_len: %hu name_len: %d type= %c name=%s\n", 
+			inode_num, dir_len, name_length, file_flag, root_dir_entry->name);
+		current += (int)dir_len;
+	}
 }
+
+
 
 // helper for returning the size of data_block
 int size_data_block(void *tablelocation, int i){
@@ -198,7 +244,7 @@ int main(int argc, char **argv) {
     // this is extra 2 for the putting the root and lost+found
     counter += 2;
 
-    printf("counter length: %d\n", counter);
+    //printf("counter length: %d\n", counter);
     // the reason we plus 1 here is because of the root
     int occupied_inode[counter];
 
@@ -219,7 +265,7 @@ int main(int argc, char **argv) {
 		ibits_array = ibits_array >> 1; 
 	}
 
-	print_inode_array(occupied_inode, counter);
+	//print_inode_array(occupied_inode, counter);
 	printf("\n");
 	printf("Directory Blocks:\n");
 	
@@ -230,17 +276,18 @@ int main(int argc, char **argv) {
 	int current = 0;
 
 	// root can always be hard coded 
-	printf("DIR BLOCK NUM: %d (for inode %d)\n", 9, 2);
+	printf("\tDIR BLOCK NUM: %d (for inode %d)\n", 9, 2);
 	while (current < end){
 		struct ext2_dir_entry_2 *root_dir_entry = (struct ext2_dir_entry_2*)(disk + (1024 * 9) + current);
 		int inode_num = root_dir_entry->inode;
 		unsigned short dir_len = root_dir_entry->rec_len;
 		int name_length = root_dir_entry->name_len;
-		char file_flag = root_dir_entry->file_type;
-
-		printf("Inode: %d rec_len: %hu name_len: %d type=%c name=%s\n", 
+		char file_flag = filetypecheck(root_dir_entry->file_type);
+		
+		printf("Inode: %d rec_len: %hu name_len: %d type= %c name=%s\n", 
 			inode_num, dir_len, name_length, file_flag, root_dir_entry->name);
 		current += (int)dir_len;
+		
 	}
 	/*
 	 * go through the bit again and get all the iblocks[i]
@@ -258,19 +305,25 @@ int main(int argc, char **argv) {
 		if(inode_bits_block & 1){
 			length_block = size_data_block(tablestart, l+1);
 			int *list_data_block;
+
+			struct ext2_inode *inode_dir_check = (struct ext2_inode*)(tablestart)+(l);
+			char type = typecheck(inode_dir_check->i_mode);
+			//printf("type: %c\n", type);
 			// this creates the data_block 
-			list_data_block = create_data_block(tablestart, l+1, length_block);
-			int m;
-			for (m = 0; m<length_block; m++){ // this prints out the data block that we are going into
-				printf("printing: %d ", list_data_block[m]);
-				// function for print out each content
-			} 
-			printf("\n");
+			if (type == 'd'){
+				list_data_block = create_data_block(tablestart, l+1, length_block);
+				int m;
+				for (m = 0; m<length_block; m++){ // this prints out the data block that we are going into
+					//printf("printing: %d ", list_data_block[m]);
+					print_directory_entry(list_data_block[m], l+1);
+					// function for print out each content
+				}
+			}
 		}
 		inode_bits_block = inode_bits_block >> 1; 
 	}
     return 0;
-    
+    // TODO: check file
     
    
 }
