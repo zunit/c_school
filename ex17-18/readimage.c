@@ -69,10 +69,46 @@ void print_valid_inodes(void *tablelocation, int i){
 	printf("[%d] blocks: ", i);
 	printdatablocks(inode->i_block);
 	printf("\n");
-		
-	
 }
 
+// helper for printing out the array 
+void print_inode_array(int *inode_array, int size){
+	int i;
+	for (i = 0; i < size; i++){
+		printf("%d ", inode_array[i]);
+	}
+}
+
+void print_directory_entry(struct ext2_dir_entry_2 *dir_entry){
+	printf("DIR BLOCK NUM: %d (for inode %d)\n", 9, dir_entry->inode);
+	printf("Inode: %d rec_len: %hu name_len: %d type=%c name=%s\n", dir_entry->inode, dir_entry->rec_len, dir_entry->name_len, dir_entry->file_type, dir_entry->name);
+	//printf("%s\n", );
+}
+
+// helper for returning the size of data_block
+int size_data_block(void *tablelocation, int i){
+	struct ext2_inode *inode = (struct ext2_inode*)(tablelocation)+(i-1);
+	int k = 0;
+	int count = 0;
+	while(inode->i_block[k]){
+		//count++;
+		k++;
+	}
+	return k;
+}
+
+// helper for return a list of data block 
+int * create_data_block(void *tablelocation, int i, int length_block){
+	struct ext2_inode *inode = (struct ext2_inode*)(tablelocation)+(i-1);
+	int k = 0;
+	int *array =(int*)malloc(length_block*sizeof(int));
+	int block = 0;
+	while(inode->i_block[k]){
+		array[block] = inode->i_block[k];
+		k++;
+	}
+	return array;
+}
 
 
 int main(int argc, char **argv) {
@@ -141,23 +177,86 @@ int main(int argc, char **argv) {
     printdatablocks(rootinode->i_block);
     printf("\n");
     
-    // below are for inode block after 11
-    
+    // below are for inode block after 11    
     // need another pointer that starts at the beginning of the inode_bitmap
     void *inode_bit_start = disk + start_inode;
     int inode_bits = *((int*)inode_bit_start);
     inode_bits = inode_bits >> 11; 
     
     int k;
-    
+    int counter = 0; // this will record how many inode are occupied 
+
     //we start at 11 because index 0 counts
     for (k = 11; k < 32; k++){
 		if(inode_bits & 1){
 			print_valid_inodes(tablestart, k+1);
+			counter += 1;
 		}
 		inode_bits = inode_bits >> 1; 
 	}
     
+    // this is extra 2 for the putting the root and lost+found
+    counter += 2;
+
+    printf("counter length: %d\n", counter);
+    // the reason we plus 1 here is because of the root
+    int occupied_inode[counter];
+
+    // need another pointer that starts at the beginning of the inode_bitmap
+    void *inode_bit_array_form = disk + start_inode;
+    int ibits_array = *((int*)inode_bit_array_form);
+    ibits_array = ibits_array >> 11; 
+ 
+    occupied_inode[0] = 2; // filling in the root inode
+    occupied_inode[1] = 11; // filling in the lost+found inode
+    int inode_count = 2;
+    for (k = 11; k < 32; k++){
+		if(ibits_array & 1){
+			// this stores the inode that need to be examined
+			occupied_inode[inode_count] = k+1;
+			inode_count += 1;
+		}
+		ibits_array = ibits_array >> 1; 
+	}
+
+	print_inode_array(occupied_inode, counter);
+	printf("\n");
+	printf("Directory Blocks:\n");
+	
+	// loop through the 
+	// root starts at 9
+	struct ext2_dir_entry_2 *dir_entry = (struct ext2_dir_entry_2*)(disk + (1024 * 9));
+	int end = 1024;
+	int current = 0;
+
+	printf("DIR BLOCK NUM: %d (for inode %d)\n", 9, dir_entry->inode);
+	printf("Inode: %d rec_len: %hu name_len: %d type=%c name=%s\n", dir_entry->inode, dir_entry->rec_len, dir_entry->name_len, dir_entry->file_type, dir_entry->name);
+	/*
+	 * go through the bit again and get all the iblocks[i]
+	 **/
+	void *inode_bit_start_block = disk + start_inode;
+    int inode_bits_block = *((int*)inode_bit_start_block);
+    inode_bits_block = inode_bits_block >> 11; 
+    
+    int l;
+    int length_block;
+
+    //int list_data_block[length_block]; // this is the list of data blocks
+    //we start at 11 because index 0 counts
+    for (l = 11; l < 32; l++){
+		if(inode_bits_block & 1){
+			length_block = size_data_block(tablestart, l+1);
+			int *list_data_block;
+			// this creates the data_block 
+			list_data_block = create_data_block(tablestart, l+1, length_block);
+			int m;
+			for (m = 0; m<length_block; m++){ // this prints out the data block that we are going into
+				printf("printing: %d ", list_data_block[m]);
+			} 
+			printf("\n");
+		}
+		inode_bits_block = inode_bits_block >> 1; 
+	}
     return 0;
     
     
