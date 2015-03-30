@@ -225,12 +225,23 @@ int main(int argc, char **argv) {
 	
 	// loop through the 
 	// root starts at 9
-	struct ext2_dir_entry_2 *dir_entry = (struct ext2_dir_entry_2*)(disk + (1024 * 9));
+	
 	int end = 1024;
 	int current = 0;
 
-	printf("DIR BLOCK NUM: %d (for inode %d)\n", 9, dir_entry->inode);
-	printf("Inode: %d rec_len: %hu name_len: %d type=%c name=%s\n", dir_entry->inode, dir_entry->rec_len, dir_entry->name_len, dir_entry->file_type, dir_entry->name);
+	// root can always be hard coded 
+	printf("DIR BLOCK NUM: %d (for inode %d)\n", 9, 2);
+	while (current < end){
+		struct ext2_dir_entry_2 *root_dir_entry = (struct ext2_dir_entry_2*)(disk + (1024 * 9) + current);
+		int inode_num = root_dir_entry->inode;
+		unsigned short dir_len = root_dir_entry->rec_len;
+		int name_length = root_dir_entry->name_len;
+		char file_flag = root_dir_entry->file_type;
+
+		printf("Inode: %d rec_len: %hu name_len: %d type=%c name=%s\n", 
+			inode_num, dir_len, name_length, file_flag, root_dir_entry->name);
+		current += (int)dir_len;
+	}
 	/*
 	 * go through the bit again and get all the iblocks[i]
 	 **/
@@ -252,6 +263,7 @@ int main(int argc, char **argv) {
 			int m;
 			for (m = 0; m<length_block; m++){ // this prints out the data block that we are going into
 				printf("printing: %d ", list_data_block[m]);
+				// function for print out each content
 			} 
 			printf("\n");
 		}
