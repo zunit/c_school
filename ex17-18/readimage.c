@@ -76,7 +76,18 @@ char filetypecheck(char flag){
 		return 'o';
 	}
 }
-	
+
+// helper function for reformatting the name
+char *create_fdir_name(char *fdir_name, int length){
+	char *name = (char*)malloc(length*sizeof(char));
+	int i;
+
+	for (i=0; i<length; i++){
+		name[i] = fdir_name[i];
+	}
+	return name;
+}
+
 // helper function for printing out data blocks
 void printdatablocks(unsigned int *i_block){
 	int i = 0;
@@ -117,14 +128,16 @@ void print_directory_entry(int blocknum, int inodenum){
 	// root can always be hard coded 
 	printf("\tDIR BLOCK NUM: %d (for inode %d)\n", blocknum, inodenum);
 	while (current < end){
-		struct ext2_dir_entry_2 *root_dir_entry = (struct ext2_dir_entry_2*)(disk + (1024 * blocknum) + current);
-		int inode_num = root_dir_entry->inode;
-		unsigned short dir_len = root_dir_entry->rec_len;
-		int name_length = root_dir_entry->name_len;
-		char file_flag = filetypecheck(root_dir_entry->file_type);
+		struct ext2_dir_entry_2 *dir_entry = (struct ext2_dir_entry_2*)(disk + (1024 * blocknum) + current);
+		int inode_num = dir_entry->inode;
+		unsigned short dir_len = dir_entry->rec_len;
+		int name_length = dir_entry->name_len;
+		char file_flag = filetypecheck(dir_entry->file_type);
+		char *fdirname;
+		fdirname = create_fdir_name(dir_entry->name, name_length);
 
 		printf("Inode: %d rec_len: %hu name_len: %d type= %c name=%s\n", 
-			inode_num, dir_len, name_length, file_flag, root_dir_entry->name);
+			inode_num, dir_len, name_length, file_flag, fdirname);
 		current += (int)dir_len;
 	}
 }
@@ -283,11 +296,13 @@ int main(int argc, char **argv) {
 		unsigned short dir_len = root_dir_entry->rec_len;
 		int name_length = root_dir_entry->name_len;
 		char file_flag = filetypecheck(root_dir_entry->file_type);
-		
+		char *fdirname;
+		fdirname = create_fdir_name(root_dir_entry->name, name_length);
+
 		printf("Inode: %d rec_len: %hu name_len: %d type= %c name=%s\n", 
-			inode_num, dir_len, name_length, file_flag, root_dir_entry->name);
+			inode_num, dir_len, name_length, file_flag, fdirname);
 		current += (int)dir_len;
-		
+
 	}
 	/*
 	 * go through the bit again and get all the iblocks[i]
